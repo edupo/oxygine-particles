@@ -14,28 +14,64 @@ using namespace oxygine;
 
 DECLARE_SMART(Particle, spParticle)
 
-class Particle: public Sprite {
+/**
+ * A Particle is a Sprite who is completely defined (appearance and animation) since the construction.
+ * After construction the particle is released and it will live until it's animations finishes.
+ */
+class Particle: public Sprite
+{
 private:
-	void onTweenDone(Event *event) {
-		Destroy();
-	}
+	timeMS _duration;
+	Vector2 _endPos;
+	spActor _parent;
+	spTween _twFadeOut;
 public:
-	Particle(ResAnim* anim, Vector2 initialPosition, float angle, float speed,
-			timeMS duration) {
+	/**
+	 * Constructor
+	 * @param anim
+	 * @param initialPosition
+	 * @param angle in radians
+	 * @param speed in pixels per second
+	 * @param duration Negative duration keep particle alive until goes out of screen.
+	 * @param emit Call Emit() after construction?
+	 */
+	Particle(spActor parent, ResAnim* anim, Vector2 initialPosition, float angle, float speed,
+			timeMS duration, bool emit = true)
+			: _duration(duration), _parent(parent)
+	{
+		setTouchEnabled(false);
 		setResAnim(anim);
 		setPosition(initialPosition);
 
-		Vector2 direction(cos(angle), sin(angle));
+		_endPos = initialPosition + Vector2(cos(angle), sin(angle)) * speed
+				* ((float) duration / 1000.0f);
 
-		Vector2 endPos = direction * speed * ((float) duration / 1000.0f);
-		addTween(Sprite::TweenAlpha(0),duration * 0.4, 1, false, duration * 0.6, Tween::ease_linear);
-		spTween tween = addTween(Sprite::TweenPosition(endPos), duration, 1,
-				false, 0, Tween::ease_outCubic);
+		setFadeOut();
 
-		tween->setDoneCallback( CLOSURE(this, &Particle::onTweenDone) );
+		if(emit)
+			Emit();
 	}
-	void Destroy() {
-		detach();
+
+	/**
+	 * Starts the tweens for the particle.
+	 */
+	void Emit()
+	{
+		//Fade-out tween: Attach destruction to fadeout tween.
+		addTween(_twFadeOut)->setDetachActor(true);
+		//Position tween.
+		addTween(Sprite::TweenPosition(_endPos), _duration, 1,
+				false, 0, Tween::ease_outCubic);
+		attachTo(_parent);
+	}
+	/**
+	 * Set the fade-out tween. (Mandatory tween for every particle)
+	 * @param when Start point [0.0, 1.0] relative to duration.
+	 * @param ease
+	 */
+	void setFadeOut(float when = 0.6, Tween::EASE ease = Tween::ease_linear){
+		_twFadeOut = createTween(Sprite::TweenAlpha(0), _duration * 1.0f - when, 1, false,
+				_duration * when, Tween::ease_linear);
 	}
 };
 
